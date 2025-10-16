@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jeu de l'Oie Tir à l'Arc</title>
+    <title>Jeu de l'Oie - Tir Laser</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Inclure Firebase Compatibility pour simplifier le code -->
     <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-app-compat.js"></script>
@@ -14,6 +14,16 @@
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        .led-indicator {
+            width: 20px;
+            height: 20px;
+            border-radius: 9999px;
+            background-color: #d1d5db;
+            transition: background-color 0.3s ease;
+        }
+        .led-hit {
+            background-color: #10b981;
         }
         .case {
             position: absolute;
@@ -62,22 +72,22 @@
         </div>
     </div>
 
-    <!-- Modale pour sacrifier une flèche -->
+    <!-- Modale pour sacrifier un tir -->
     <div id="sacrifice-arrow-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 hidden">
         <div class="bg-stone-100 p-6 rounded-xl shadow-lg text-left max-w-md w-full">
             
             <!-- Step 1: Choose Penalty -->
             <div id="sacrifice-step-1">
-                <h3 class="text-2xl font-bold mb-4 text-stone-800">Sacrifier une flèche</h3>
-                <p class="mb-6 text-stone-700">Choisissez un désavantage à appliquer à une autre équipe. Cela vous coûtera une flèche.</p>
+                <h3 class="text-2xl font-bold mb-4 text-stone-800">Sacrifier un tir</h3>
+                <p class="mb-6 text-stone-700">Choisissez un désavantage à appliquer à une autre équipe. Cela vous coûtera une tentative de tir.</p>
                 <div class="space-y-3">
                     <button data-action="move_backward" class="sacrifice-action-btn w-full text-left p-4 rounded-lg bg-stone-200 hover:bg-amber-200 transition-colors">
                         <span class="font-bold">Faire reculer de 10 cases</span>
                         <span class="block text-sm text-stone-600">L'équipe ciblée reculera immédiatement de 10 cases.</span>
                     </button>
                     <button data-action="lose_arrow" class="sacrifice-action-btn w-full text-left p-4 rounded-lg bg-stone-200 hover:bg-amber-200 transition-colors">
-                        <span class="font-bold">Faire perdre une flèche</span>
-                        <span class="block text-sm text-stone-600">Un joueur de l'équipe ciblée perdra une flèche au prochain tour.</span>
+                        <span class="font-bold">Faire perdre un tir</span>
+                        <span class="block text-sm text-stone-600">Un joueur de l'équipe ciblée perdra une tentative lors du prochain tour.</span>
                     </button>
                 </div>
                 <div class="flex justify-end mt-6">
@@ -122,16 +132,16 @@
 
                 <div>
                     <h4 class="font-bold text-lg flex items-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>Déroulement d'un tour</h4>
-                    <p class="mt-1 pl-8">Chaque équipe est composée de <strong>2 joueurs</strong>. À chaque tour, les deux joueurs doivent effectuer leurs <strong>3 tirs</strong> (ou actions).</p>
-                    <p class="mt-2 pl-8">Pour avancer, on prend le <strong>meilleur score de chaque joueur</strong> et on les additionne. <br><em>Exemple: Joueur 1 fait 8, 9, 6. Joueur 2 fait 10, 7, 7. On retient 9 et 10. L'équipe avance de 19 cases.</em></p>
+                    <p class="mt-1 pl-8">Chaque équipe est composée de <strong>2 joueurs</strong>. Pendant la phase de tir, les joueurs disposent de <strong>5 cibles lumineuses</strong> à allumer.</p>
+                    <p class="mt-2 pl-8">À la fin du tour, l'équipe avance du <strong>nombre de LEDs allumées</strong>. Vous pouvez mettre fin à la séquence à tout moment si le temps est écoulé.</p>
                 </div>
 
                 <div>
-                    <h4 class="font-bold text-lg flex items-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>Sacrifier une Flèche</h4>
-                    <p class="mt-1 pl-8">Chaque joueur peut choisir de <strong>sacrifier UNE SEULE flèche</strong> durant toute la partie. Au lieu de tirer, le joueur choisit d'appliquer un malus à une équipe adverse :</p>
+                    <h4 class="font-bold text-lg flex items-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>Sacrifier un Tir</h4>
+                    <p class="mt-1 pl-8">Chaque joueur peut choisir de <strong>sacrifier UNE SEULE tentative</strong> durant toute la partie. Au lieu de tirer, le joueur choisit d'appliquer un malus à une équipe adverse :</p>
                     <ul class="list-disc list-inside mt-2 space-y-1 pl-12">
                         <li><strong>Faire reculer de 10 cases</strong> une équipe adverse.</li>
-                        <li><strong>Faire perdre une flèche</strong> à un adversaire au prochain tour (un "P" apparaîtra dans ses scores).</li>
+                        <li><strong>Faire perdre un tir</strong> à un adversaire au prochain tour.</li>
                     </ul>
                     <p class="mt-2 pl-8"><strong>Attention :</strong> une équipe ne peut pas recevoir plus de <strong>deux malus</strong> de sacrifice durant toute la partie.</p>
                 </div>
@@ -376,7 +386,15 @@
                         pendingPenalty: null,
                         lastArrowTimestamp: null,
                         turnTimes: [],
-                        penaltiesReceived: 0
+                        penaltiesReceived: 0,
+                        laserRoundStartedAt: null,
+                        laserHits: 0,
+                        laserMisses: 0,
+                        laserAttempts: 0,
+                        laserRoundsCompleted: 0,
+                        laserTotalHits: 0,
+                        laserTotalMisses: 0,
+                        laserPenaltyApplied: false
                     };
                     transaction.update(gameDocRef, { teams: firebase.firestore.FieldValue.arrayUnion(newTeam) });
                 });
@@ -402,23 +420,19 @@
         };
 
         const handleEndOfRound = (team) => {
-            if (!team.members.every(member => member.scores.length === 3)) {
-                return; // Round is not over
+            const hits = team.laserHits || 0;
+            const misses = team.laserMisses || 0;
+            const attempts = team.laserAttempts || (hits + misses);
+
+            if (hits === undefined || misses === undefined) {
+                return;
             }
 
-            let totalScore = 0;
-            team.members.forEach(member => {
-                const roundPoints = member.scores.filter(s => typeof s === 'number').reduce((sum, current) => sum + current, 0);
-                member.totalPoints = (member.totalPoints || 0) + roundPoints;
-                member.arrowsShot = (member.arrowsShot || 0) + 3;
-                const bestScore = Math.max(0, ...member.scores.filter(s => typeof s === 'number'));
-                totalScore += bestScore;
-            });
-
-            let finalMessage = `Tour terminé ! Vous avancez de ${totalScore} cases.`;
+            const caseWord = hits > 1 ? 'cases' : 'case';
+            let finalMessage = `Séquence terminée ! Vous avancez de ${hits} ${caseWord}.`;
 
             const boardSize = gameData?.boardSize || 64;
-            let newPosition = team.position + totalScore;
+            let newPosition = team.position + hits;
             if (newPosition > boardSize) newPosition = boardSize;
 
             let specialMessage = '';
@@ -432,7 +446,7 @@
             } else if (newPosition === 51) {
                 newPosition += 10;
                 specialMessage = `Case bonus ! Vous avancez de 10 cases supplémentaires.`;
-            } 
+            }
             // Malus squares
             else if ([6, 8].includes(newPosition)) {
                 newPosition -= 6;
@@ -455,89 +469,118 @@
                 finalMessage += `\n${specialMessage}`;
             }
 
+            if (attempts > 0) {
+                const successRate = Math.round((hits / attempts) * 100);
+                finalMessage += `\nRéussite: ${hits}/${attempts} tirs (${successRate}% de LEDs allumées).`;
+            }
+
             team.penaltyMessage = finalMessage;
             team.position = newPosition;
-            team.members.forEach(m => m.scores = []); // Reset scores
-            team.selectedPlayerIndex = 0; // Reset to player 1 for the next round
+            team.laserTotalHits = (team.laserTotalHits || 0) + hits;
+            team.laserTotalMisses = (team.laserTotalMisses || 0) + misses;
+            team.laserRoundsCompleted = (team.laserRoundsCompleted || 0) + 1;
+            team.laserHits = 0;
+            team.laserMisses = 0;
+            team.laserAttempts = 0;
+            team.laserPenaltyApplied = false;
+            team.members.forEach(m => m.scores = []);
+            team.selectedPlayerIndex = 0;
             team.lastArrowTimestamp = new Date().getTime();
         };
 
         const applyPenaltyIfNeeded = (team) => {
             if (team.pendingPenalty === 'lose_arrow') {
-                const playerToPenalize = team.members.find(m => m.scores.length < 3);
-                if (playerToPenalize) {
-                    playerToPenalize.scores.push('P');
-                    team.pendingPenalty = null;
-                    showMessage(`A cause d'une pénalité, ${playerToPenalize.name} perd une flèche ce tour-ci.`);
-                    return true; // Penalty was applied
-                }
+                team.laserMisses = (team.laserMisses || 0) + 1;
+                team.laserAttempts = (team.laserAttempts || 0) + 1;
+                team.pendingPenalty = null;
+                showMessage(`À cause d'une pénalité, votre équipe perd une tentative de tir.`);
+                return true;
             }
             return false;
         }
 
-        const recordScore = async (score) => {
-            const scoreInputContainer = document.getElementById('score-input-container');
-            if (!scoreInputContainer) return;
+        const updateLaserRoundState = async (mutator) => {
+            const gameDocRef = db.collection('games').doc(gameId);
+            await db.runTransaction(async (transaction) => {
+                const docSnap = await transaction.get(gameDocRef);
+                if (!docSnap.exists) throw new Error("La partie n'existe plus.");
 
-            const scoreButtons = scoreInputContainer.querySelectorAll('button');
-            
-            // Disable buttons to prevent multiple clicks and show loading state
-            scoreButtons.forEach(btn => btn.disabled = true);
-            scoreInputContainer.classList.add('opacity-50', 'cursor-not-allowed');
+                const data = docSnap.data();
+                const teams = data.teams;
+                const myTeamIndex = teams.findIndex(t => t.id === userId);
+                if (myTeamIndex === -1) throw new Error("Équipe non trouvée.");
 
-            try {
-                const gameDocRef = db.collection('games').doc(gameId);
-                await db.runTransaction(async (transaction) => {
-                    const docSnap = await transaction.get(gameDocRef);
-                    if (!docSnap.exists) throw new Error("La partie n'existe plus.");
-                    
-                    const data = docSnap.data();
-                    const teams = data.teams;
-                    const myTeamIndex = teams.findIndex(t => t.id === userId);
-                    if (myTeamIndex === -1) throw new Error("Équipe non trouvée.");
+                const myTeam = teams[myTeamIndex];
 
-                    const myTeam = teams[myTeamIndex];
+                if (myTeam.laserHits === undefined) myTeam.laserHits = 0;
+                if (myTeam.laserMisses === undefined) myTeam.laserMisses = 0;
+                if (myTeam.laserAttempts === undefined) myTeam.laserAttempts = 0;
 
-                    const isFirstArrowOfRound = myTeam.members.every(m => m.scores.length === 0);
-                    if (isFirstArrowOfRound && myTeam.lastArrowTimestamp) {
-                        const now = new Date().getTime();
+                if (!myTeam.laserRoundStartedAt) {
+                    const now = new Date().getTime();
+                    if (myTeam.lastArrowTimestamp) {
                         const turnDuration = Math.round((now - myTeam.lastArrowTimestamp) / 1000);
                         if (!myTeam.turnTimes) myTeam.turnTimes = [];
                         myTeam.turnTimes.push(turnDuration);
                     }
-                    
-                    applyPenaltyIfNeeded(myTeam);
+                    myTeam.laserRoundStartedAt = now;
+                    myTeam.laserPenaltyApplied = false;
+                }
 
-                    const playerScores = myTeam.members[myTeam.selectedPlayerIndex].scores;
-
-                    if (playerScores.length >= 3) {
-                        // This check is important to prevent race conditions.
-                        // The UI should already prevent this, but this is a server-side safeguard.
-                        showMessage(`Ce joueur a déjà tiré ses 3 flèches.`);
-                        return; // Aborts the transaction.
+                if (!myTeam.laserPenaltyApplied) {
+                    const applied = applyPenaltyIfNeeded(myTeam);
+                    if (applied) {
+                        myTeam.laserPenaltyApplied = true;
                     }
+                }
 
-                    playerScores.push(score);
-
-                    if (playerScores.length === 3 && myTeam.members.length > 1) {
-                        myTeam.selectedPlayerIndex = (myTeam.selectedPlayerIndex + 1) % myTeam.members.length;
-                    }
-
+                const shouldComplete = mutator(myTeam, data) === 'complete';
+                if (shouldComplete) {
                     handleEndOfRound(myTeam);
-                    transaction.update(gameDocRef, { teams: teams });
+                    myTeam.laserRoundStartedAt = null;
+                }
+
+                transaction.update(gameDocRef, { teams: teams });
+            });
+        };
+
+        const recordLaserHit = async () => {
+            try {
+                await updateLaserRoundState((team) => {
+                    if ((team.laserHits || 0) >= 5) {
+                        return;
+                    }
+                    team.laserHits = (team.laserHits || 0) + 1;
+                    team.laserAttempts = (team.laserAttempts || 0) + 1;
+                    if ((team.laserHits || 0) >= 5) {
+                        return 'complete';
+                    }
                 });
             } catch (error) {
-                console.error("Erreur lors de l'enregistrement du score:", error);
+                console.error("Erreur lors de l'enregistrement du tir réussi:", error);
                 showMessage(`Une erreur est survenue: ${error.message}`);
-                // On failure, we must re-enable the UI.
-                // The onSnapshot listener won't run, so we have to do it manually.
-                scoreButtons.forEach(btn => btn.disabled = false);
-                scoreInputContainer.classList.remove('opacity-50', 'cursor-not-allowed');
             }
-            // On success, we don't re-enable the UI here.
-            // The onSnapshot listener will trigger a full re-render of the student controls,
-            // which will either show new buttons for the next player or a "turn complete" message.
-            // This prevents a "flash" of enabled buttons before the UI properly updates.
+        };
+
+        const recordLaserMiss = async () => {
+            try {
+                await updateLaserRoundState((team) => {
+                    team.laserMisses = (team.laserMisses || 0) + 1;
+                    team.laserAttempts = (team.laserAttempts || 0) + 1;
+                });
+            } catch (error) {
+                console.error("Erreur lors de l'enregistrement du tir manqué:", error);
+                showMessage(`Une erreur est survenue: ${error.message}`);
+            }
+        };
+
+        const finishLaserRound = async () => {
+            try {
+                await updateLaserRoundState(() => 'complete');
+            } catch (error) {
+                console.error("Erreur lors de la finalisation du tour:", error);
+                showMessage(`Une erreur est survenue: ${error.message}`);
+            }
         };
 
         // --- New Sacrifice Logic ---
@@ -597,7 +640,7 @@
         };
 
         const handleSacrificeConfirmation = (targetTeam) => {
-            const actionText = sacrificeState.action === 'move_backward' ? 'faire reculer de 10 cases' : 'faire perdre une flèche';
+            const actionText = sacrificeState.action === 'move_backward' ? 'faire reculer de 10 cases' : 'faire perdre un tir';
             const confirmation = confirm(`Confirmez-vous vouloir ${actionText} l\'équipe "${targetTeam.name}" ?`);
 
             if (confirmation) {
@@ -630,25 +673,11 @@
                     return;
                 }
 
-                const isFirstArrowOfRound = myTeam.members.every(m => m.scores.length === 0);
-                if (isFirstArrowOfRound && myTeam.lastArrowTimestamp) {
-                    const now = new Date().getTime();
-                    const turnDuration = Math.round((now - myTeam.lastArrowTimestamp) / 1000);
-                    if (!myTeam.turnTimes) myTeam.turnTimes = [];
-                    myTeam.turnTimes.push(turnDuration);
-                }
-
                 const player = myTeam.members[myTeam.selectedPlayerIndex];
                 if (player.hasSacrificed) {
-                    showMessage("Ce joueur a déjà sacrifié une flèche.");
+                    showMessage("Ce joueur a déjà sacrifié un tir.");
                     return;
                 }
-
-                if (player.scores.length >= 3) {
-                    showMessage("Vous n'avez plus de flèches à sacrifier.");
-                    return;
-                }
-                player.scores.push('S');
                 player.hasSacrificed = true;
 
                 targetTeam.penaltiesReceived = (targetTeam.penaltiesReceived || 0) + 1;
@@ -659,17 +688,11 @@
                     penaltyText = `L'équipe ${myTeam.name} vous a fait reculer de 10 cases !`;
                 } else if (actionType === 'lose_arrow') {
                     targetTeam.pendingPenalty = 'lose_arrow';
-                    penaltyText = `L'équipe ${myTeam.name} vous a fait perdre une flèche pour le prochain tour.`;
+                    penaltyText = `L'équipe ${myTeam.name} vous a fait perdre un tir pour le prochain tour.`;
                 }
                 targetTeam.penaltyMessage = penaltyText;
-                
-                showMessage(`Vous avez sacrifié une flèche pour pénaliser ${targetTeam.name}.`);
 
-                if (player.scores.length === 3 && myTeam.members.length > 1) {
-                    myTeam.selectedPlayerIndex = (myTeam.selectedPlayerIndex + 1) % myTeam.members.length;
-                }
-
-                handleEndOfRound(myTeam);
+                showMessage(`Vous avez sacrifié un tir pour pénaliser ${targetTeam.name}.`);
                 transaction.update(gameDocRef, { teams: teams });
             });
         };
@@ -701,7 +724,15 @@
                     members: t.members.map(m => ({...m, scores: [], hasSacrificed: false, totalPoints: 0, arrowsShot: 0 })),
                     lastArrowTimestamp: null,
                     turnTimes: [],
-                    penaltiesReceived: 0
+                    penaltiesReceived: 0,
+                    laserRoundStartedAt: null,
+                    laserHits: 0,
+                    laserMisses: 0,
+                    laserAttempts: 0,
+                    laserRoundsCompleted: 0,
+                    laserTotalHits: 0,
+                    laserTotalMisses: 0,
+                    laserPenaltyApplied: false
                 }));
                 transaction.update(gameDocRef, {
                     teams: updatedTeams,
@@ -720,8 +751,8 @@
                 case 'home':
                     pageContent = `
                         <div class="flex flex-col items-center justify-center min-h-screen p-4 bg-stone-100 text-stone-800">
-                            <h1 class="text-4xl font-bold mb-8 text-center text-amber-700">Jeu de l'Oie Tir à l'Arc</h1>
-                            <p class="text-xl mb-6 text-center">Bienvenue ! Préparez votre arc et vos flèches.</p>
+                            <h1 class="text-4xl font-bold mb-8 text-center text-amber-700">Jeu de l'Oie Tir Laser</h1>
+                            <p class="text-xl mb-6 text-center">Bienvenue ! Préparez votre pistolet laser et vos cibles lumineuses.</p>
                             <div class="w-full max-w-xs space-y-4">
                                 <div>
                                     <label for="board-size-select" class="block text-sm font-medium text-stone-700 mb-1">Taille du plateau :</label>
@@ -790,7 +821,7 @@
                     pageContent = `
                         <div class="flex h-screen w-screen overflow-hidden p-4 bg-stone-100 text-stone-800">
                             <div class="w-1/2 h-full flex flex-col p-2">
-                                <h2 class="text-3xl font-bold mb-4 text-amber-700 text-center">Course de Tir à l'Arc</h2>
+                                <h2 class="text-3xl font-bold mb-4 text-amber-700 text-center">Course de Tir Laser</h2>
                                 <div id="game-board" class="flex-grow bg-white p-2 rounded-xl shadow-lg relative"></div>
                                 <div class="flex items-center justify-center mt-2">
                                     <input type="checkbox" id="show-names-checkbox" class="h-4 w-4 text-amber-600 focus:ring-amber-500 border-gray-300 rounded">
@@ -846,7 +877,7 @@
                                     <div id="player-scores"></div>
                                     <div id="score-input-container" class="mt-4"></div>
                                     <button id="sacrifice-arrow-btn" class="mt-4 w-full bg-red-700 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors">
-                                        Sacrifier une flèche
+                                        Sacrifier un tir
                                     </button>
                                 </div>
                             `;
@@ -862,7 +893,7 @@
                     pageContent = `
                         <div class="flex h-screen w-screen overflow-hidden p-4 bg-stone-100 text-stone-800">
                             <div class="w-1/2 h-full flex flex-col p-2">
-                                <h2 class="text-3xl font-bold mb-4 text-amber-700 text-center">Course de Tir à l'Arc</h2>
+                                <h2 class="text-3xl font-bold mb-4 text-amber-700 text-center">Course de Tir Laser</h2>
                                 <div id="game-board" class="flex-grow bg-white p-2 rounded-xl shadow-lg relative"></div>
                                 <div class="flex items-center justify-center mt-2">
                                     <input type="checkbox" id="show-names-checkbox" class="h-4 w-4 text-amber-600 focus:ring-amber-500 border-gray-300 rounded">
@@ -947,6 +978,11 @@
                 const avgTurnTime = team.turnTimes && team.turnTimes.length > 0
                     ? Math.round(team.turnTimes.reduce((a, b) => a + b, 0) / team.turnTimes.length)
                     : 0;
+                const totalHits = team.laserTotalHits || 0;
+                const totalMisses = team.laserTotalMisses || 0;
+                const totalAttempts = totalHits + totalMisses;
+                const successRate = totalAttempts > 0 ? Math.round((totalHits / totalAttempts) * 100) : 0;
+                const roundsCompleted = team.laserRoundsCompleted || 0;
 
                 const li = document.createElement('li');
                 li.className = `p-3 rounded-lg shadow-md w-64 bg-white`;
@@ -961,12 +997,12 @@
                     </div>
                     <div class="text-sm text-stone-700 font-semibold">${playerNames}</div>
                     <div class="text-xs text-stone-600 mt-2 space-y-1">
-                        ${team.members.map(m => {
-                            const avgScore = m.arrowsShot ? (m.totalPoints / m.arrowsShot).toFixed(1) : 0;
-                            return `<div>${m.name}: <strong>${m.totalPoints || 0} pts</strong> / ${m.arrowsShot || 0} flèches (${avgScore} moy.)</div>`
-                        }).join('')}
+                        <div>Total LEDs allumées : <strong>${totalHits}</strong></div>
+                        <div>Tirs manqués : <strong>${totalMisses}</strong></div>
+                        <div>Taux de réussite : <strong>${successRate}%</strong></div>
+                        <div>Sessions terminées : <strong>${roundsCompleted}</strong></div>
                     </div>
-                    <div class="text-xs text-stone-500 mt-2 pt-2 border-t border-stone-200">Temps moyen/tour: <strong>${avgTurnTime}s</strong></div>
+                    <div class="text-xs text-stone-500 mt-2 pt-2 border-t border-stone-200">Temps moyen/tour : <strong>${avgTurnTime}s</strong></div>
                 `;
                 list.appendChild(li);
             });
@@ -976,62 +1012,68 @@
             const scoresDiv = document.getElementById('player-scores');
             if (!scoresDiv || !team) return;
             scoresDiv.innerHTML = '';
-            scoresDiv.className = 'flex justify-around items-start';
+            scoresDiv.className = 'flex flex-col items-center gap-4';
 
-            team.members.forEach((member, index) => {
-                const memberDiv = document.createElement('div');
-                memberDiv.className = 'flex flex-col items-center gap-2';
+            const namesParagraph = document.createElement('p');
+            namesParagraph.className = 'text-sm text-stone-600';
+            namesParagraph.textContent = team.members.map(m => m.name).join(' & ');
+            scoresDiv.appendChild(namesParagraph);
 
-                const nameButton = document.createElement('button');
-                nameButton.textContent = member.name;
-                nameButton.className = `font-semibold py-1 px-4 rounded-lg ${team.selectedPlayerIndex === index ? 'bg-amber-600 text-white' : 'bg-stone-200 text-stone-800'}`;
-                nameButton.onclick = () => switchPlayer(team, index);
-
-                const scoresContainer = document.createElement('div');
-                scoresContainer.className = 'flex justify-center gap-2';
-                let scoresHTML = '';
-                const memberScores = member.scores || [];
-                for (let i = 0; i < 3; i++) {
-                    const score = memberScores[i];
-                    let scoreBoxHTML = '';
-                    if (score === 'S') {
-                        scoreBoxHTML = `<div class="w-10 h-10 inline-flex items-center justify-center rounded-md border-2 border-stone-300 bg-red-200 text-red-700">S</div>`;
-                    } else if (score === 'P') {
-                        scoreBoxHTML = `<div class="w-10 h-10 inline-flex items-center justify-center rounded-md border-2 border-stone-300 bg-yellow-200 text-yellow-700">P</div>`;
-                    } else {
-                        scoreBoxHTML = `<div class="w-10 h-10 inline-flex items-center justify-center rounded-md border-2 border-stone-300">${score !== undefined ? score : '-'}</div>`;
-                    }
-                    scoresHTML += scoreBoxHTML;
+            const ledContainer = document.createElement('div');
+            ledContainer.className = 'flex gap-2 justify-center';
+            const hits = team.laserHits || 0;
+            for (let i = 0; i < 5; i++) {
+                const led = document.createElement('div');
+                led.className = 'led-indicator shadow-inner';
+                if (i < hits) {
+                    led.classList.add('led-hit');
                 }
-                scoresContainer.innerHTML = scoresHTML;
+                ledContainer.appendChild(led);
+            }
+            scoresDiv.appendChild(ledContainer);
 
-                memberDiv.appendChild(nameButton);
-                memberDiv.appendChild(scoresContainer);
-                scoresDiv.appendChild(memberDiv);
-            });
+            const misses = team.laserMisses || 0;
+            const attempts = team.laserAttempts || (hits + misses);
+            const infoParagraph = document.createElement('p');
+            infoParagraph.className = 'text-sm text-stone-700 text-center';
+            const successRate = attempts > 0 ? Math.round((hits / attempts) * 100) : 0;
+            infoParagraph.textContent = `LED allumées : ${hits}/5 · Tirs manqués : ${misses} · Réussite : ${successRate}%`;
+            scoresDiv.appendChild(infoParagraph);
         };
 
         const renderArrowInputs = (team) => {
             const scoreInputContainer = document.getElementById('score-input-container');
             if (!scoreInputContainer || !team) return;
             scoreInputContainer.innerHTML = '';
+            const hits = team.laserHits || 0;
+            const buttonsDiv = document.createElement('div');
+            buttonsDiv.className = 'grid grid-cols-1 gap-2';
 
-            const currentPlayerScores = team.members[team.selectedPlayerIndex].scores || [];
-            if (currentPlayerScores.length < 3) {
-                const possibleScores = [0, 6, 7, 8, 9, 10];
-                const buttonsDiv = document.createElement('div');
-                buttonsDiv.className = 'flex justify-center gap-2';
-                possibleScores.forEach(score => {
-                    const scoreButton = document.createElement('button');
-                    scoreButton.className = 'bg-stone-700 hover:bg-stone-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors';
-                    scoreButton.innerText = score;
-                    scoreButton.onclick = () => recordScore(score);
-                    buttonsDiv.appendChild(scoreButton);
-                });
-                scoreInputContainer.appendChild(buttonsDiv);
-            } else {
-                scoreInputContainer.innerHTML = `<p class="text-center text-green-700 font-bold">${team.members[team.selectedPlayerIndex].name} a tiré toutes ses flèches !</p>`;
-            }
+            const controlsRow = document.createElement('div');
+            controlsRow.className = 'grid grid-cols-1 sm:grid-cols-2 gap-2';
+
+            const hitButton = document.createElement('button');
+            hitButton.className = 'bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors disabled:opacity-50';
+            hitButton.innerText = 'LED allumée';
+            hitButton.disabled = hits >= 5;
+            hitButton.onclick = recordLaserHit;
+            controlsRow.appendChild(hitButton);
+
+            const missButton = document.createElement('button');
+            missButton.className = 'bg-stone-700 hover:bg-stone-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors';
+            missButton.innerText = 'LED éteinte';
+            missButton.onclick = recordLaserMiss;
+            controlsRow.appendChild(missButton);
+
+            buttonsDiv.appendChild(controlsRow);
+
+            const finishButton = document.createElement('button');
+            finishButton.className = 'bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-colors';
+            finishButton.innerText = hits >= 5 ? 'Valider les 5 LEDs' : 'Terminer la séquence';
+            finishButton.onclick = finishLaserRound;
+            buttonsDiv.appendChild(finishButton);
+
+            scoreInputContainer.appendChild(buttonsDiv);
         };
         
         const renderGameBoard = (board, teams) => {
