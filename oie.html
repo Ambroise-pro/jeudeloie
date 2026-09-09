@@ -11,6 +11,14 @@
     <script src="https://www.gstatic.com/firebasejs/10.6.0/firebase-firestore-compat.js"></script>
     <!-- Inclure la bibliothèque QR Code -->
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.4.4/build/qrcode.min.js"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -25,36 +33,17 @@
         .led-hit {
             background-color: #10b981;
         }
-        .case {
-            position: absolute;
-            width: 35px;
-            height: 35px;
-            border: 1px solid black;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
+        #game-board canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            border-radius: 0.75rem;
+            touch-action: none;
         }
-        .bonus { background-color: #4ade80; }
-        .malus { background-color: #f87171; }
-        .start { background-color: #34d399; }
-        .end { background-color: #fbbf24; }
-        .my-team-pawn {
-            transform: scale(1.5);
-            z-index: 10;
-            border: 2px solid gold !important;
-        }
-        .pawn-name-label {
-            position: absolute;
-            bottom: 120%;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: rgba(0, 0, 0, 0.75);
-            color: white;
-            padding: 2px 5px;
-            border-radius: 4px;
-            font-size: 10px;
-            white-space: nowrap;
+        .board-hint {
+            font-size: 0.7rem;
+            color: #78716c;
+            text-align: center;
         }
     </style>
 </head>
@@ -165,7 +154,10 @@
     </div>
 
 
-    <script>
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
         // Configuration de l'application
         const APP_ID = 'default-app-id';
         const firebaseConfig = {
@@ -783,6 +775,7 @@
                                         Afficher les noms des équipes
                                     </label>
                                 </div>
+                                <p class="board-hint">Glisser pour tourner le plateau 3D · molette pour zoomer</p>
                             </div>
                             <div class="w-1/2 h-full flex flex-col p-2 overflow-y-auto">
                                 <h2 class="text-3xl font-bold mb-4 text-amber-700 text-center">Interface du Professeur</h2>
@@ -829,6 +822,7 @@
                                         Afficher les noms des équipes
                                     </label>
                                 </div>
+                                <p class="board-hint">Glisser pour tourner le plateau 3D · molette pour zoomer</p>
                             </div>
                             <div class="w-1/2 h-full flex flex-col p-2 overflow-y-auto">
                                 <div class="bg-white p-4 rounded-xl shadow-lg mb-4">
@@ -901,6 +895,7 @@
                                         Afficher les noms des équipes
                                     </label>
                                 </div>
+                                <p class="board-hint">Glisser pour tourner le plateau 3D · molette pour zoomer</p>
                             </div>
                             <div class="w-1/2 h-full flex flex-col p-2 overflow-y-auto">
                                 ${hasWinner ? winnerHtml : studentControlsHtml}
@@ -1076,85 +1071,59 @@
             scoreInputContainer.appendChild(buttonsDiv);
         };
         
-        const renderGameBoard = (board, teams) => {
-            const container = document.getElementById('game-board');
-            if (!container) return;
-            container.innerHTML = '';
+        // --- Rendu 3D du plateau (Three.js) ---
+        const tileColors3D = { normal: 0xf5e6c8, bonus: 0x4ade80, malus: 0xf87171, start: 0x34d399, end: 0xfbbf24 };
+        let threeState = null;
 
-            const showNamesCheckbox = document.getElementById('show-names-checkbox');
-            const showNames = showNamesCheckbox ? showNamesCheckbox.checked : false;
-            const boardSize = gameData?.boardSize || 64;
+        const makeTextSprite = (text, { fontSize = 56, color = '#1c1917', background = null, scale = 0.62 } = {}) => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            if (background) {
+                ctx.fillStyle = background;
+                ctx.beginPath();
+                ctx.roundRect ? ctx.roundRect(4, 4, 120, 120, 16) : ctx.rect(4, 4, 120, 120);
+                ctx.fill();
+            }
+            ctx.font = `bold ${fontSize}px sans-serif`;
+            ctx.fillStyle = color;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 64, 68);
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+            const sprite = new THREE.Sprite(material);
+            sprite.scale.set(scale, scale, scale);
+            return sprite;
+        };
 
-            let x = 0, y = 0;
-            let step = 40;
+        const layoutBoardTiles = (board, boardSize) => {
+            const positions = [];
+            let x = 0, z = 0;
+            const step = 1.15;
             let direction = 3;
             let stepsInCurrentDirection = 0;
-            
-            let segments;
-            if (boardSize === 89) {
-                segments = [11, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
-            } else {
-                segments = [9, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
-            }
-            
+            const segments = boardSize === 89
+                ? [11, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+                : [9, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
             let segmentIndex = 0;
             let countToChange = segments[segmentIndex];
 
-            for(let i = 0; i < boardSize; i++) {
+            for (let i = 0; i < boardSize; i++) {
                 const caseNumber = i + 1;
                 const squareData = board.find(s => s.number === caseNumber);
-                
-                const newCase = document.createElement('div');
-                newCase.classList.add('case');
-                if(squareData) newCase.classList.add(squareData.type);
-                newCase.style.left = x + 'px';
-                newCase.style.top = y + 'px';
-                newCase.textContent = caseNumber;
+                positions.push({ number: caseNumber, type: squareData ? squareData.type : 'normal', x, z });
 
-                if (caseNumber === 1) newCase.textContent = "Départ";
-                if (caseNumber === boardSize) newCase.textContent = "Arrivée";
-                
-                container.appendChild(newCase);
-
-                // Add pawns
-                const teamsOnThisCase = teams.filter(t => t.position === caseNumber);
-                teamsOnThisCase.forEach((team, pawnIndex) => {
-                    const originalTeamIndex = teams.findIndex(t => t.id === team.id);
-                    const pawn = document.createElement('div');
-                    pawn.style.width = '12px';
-                    pawn.style.height = '12px';
-                    pawn.style.borderRadius = '50%';
-                    pawn.style.backgroundColor = teamColors[originalTeamIndex % teamColors.length];
-                    pawn.style.border = '1px solid #000';
-                    pawn.style.position = 'absolute';
-                    pawn.style.left = (2 + pawnIndex * 14) + 'px';
-                    pawn.style.top = '2px';
-                    pawn.title = team.name;
-
-                    if (team.id === userId) {
-                        pawn.classList.add('my-team-pawn');
-                    }
-
-                    if (showNames) {
-                        const nameLabel = document.createElement('div');
-                        nameLabel.className = 'pawn-name-label';
-                        nameLabel.textContent = team.name;
-                        pawn.style.position = 'relative'; // For label positioning
-                        pawn.appendChild(nameLabel);
-                    }
-
-                    newCase.appendChild(pawn);
-                });
-
-                switch(direction) {
-                    case 1: y -= step; break; // Up
+                switch (direction) {
+                    case 1: z -= step; break; // Up
                     case 2: x += step; break; // Right
-                    case 3: y += step; break; // Down
+                    case 3: z += step; break; // Down
                     case 4: x -= step; break; // Left
                 }
 
                 stepsInCurrentDirection++;
-                if(stepsInCurrentDirection === countToChange) {
+                if (stepsInCurrentDirection === countToChange) {
                     stepsInCurrentDirection = 0;
                     direction = direction === 1 ? 4 : direction - 1;
                     segmentIndex++;
@@ -1163,6 +1132,181 @@
                     }
                 }
             }
+            return positions;
+        };
+
+        const resizeThreeRenderer = (container) => {
+            if (!threeState || !container) return;
+            const width = container.clientWidth || 300;
+            const height = container.clientHeight || 300;
+            threeState.renderer.setSize(width, height, false);
+            threeState.camera.aspect = width / height;
+            threeState.camera.updateProjectionMatrix();
+        };
+
+        const ensureThreeScene = (container) => {
+            if (!threeState) {
+                const renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+
+                const scene = new THREE.Scene();
+                scene.background = new THREE.Color(0xe7e5e4);
+
+                const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 500);
+                const controls = new OrbitControls(camera, renderer.domElement);
+                controls.enableDamping = true;
+                controls.dampingFactor = 0.08;
+                controls.minDistance = 4;
+                controls.maxDistance = 60;
+                controls.maxPolarAngle = Math.PI / 2.1;
+
+                scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+                const sun = new THREE.DirectionalLight(0xffffff, 0.75);
+                sun.position.set(12, 20, 8);
+                scene.add(sun);
+
+                const tileGroup = new THREE.Group();
+                const pawnGroup = new THREE.Group();
+                scene.add(tileGroup);
+                scene.add(pawnGroup);
+
+                threeState = { renderer, scene, camera, controls, tileGroup, pawnGroup, boardSize: null, pawnStates: new Map() };
+
+                const animate = () => {
+                    requestAnimationFrame(animate);
+                    if (!threeState.renderer.domElement.isConnected) return;
+                    threeState.pawnStates.forEach((p) => {
+                        p.current.x += (p.target.x - p.current.x) * 0.12;
+                        p.current.z += (p.target.z - p.current.z) * 0.12;
+                        p.mesh.position.x = p.current.x;
+                        p.mesh.position.z = p.current.z;
+                    });
+                    threeState.controls.update();
+                    threeState.renderer.render(threeState.scene, threeState.camera);
+                };
+                animate();
+
+                window.addEventListener('resize', () => resizeThreeRenderer(threeState.renderer.domElement.parentElement));
+            }
+
+            if (threeState.renderer.domElement.parentElement !== container) {
+                container.appendChild(threeState.renderer.domElement);
+            }
+            resizeThreeRenderer(container);
+            return threeState;
+        };
+
+        const buildBoardTiles = (positions, boardSize) => {
+            const state = threeState;
+            while (state.tileGroup.children.length) {
+                state.tileGroup.remove(state.tileGroup.children[0]);
+            }
+            const geometry = new THREE.BoxGeometry(1, 0.22, 1);
+            positions.forEach((tile) => {
+                const material = new THREE.MeshStandardMaterial({ color: tileColors3D[tile.type] || tileColors3D.normal });
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.position.set(tile.x, 0, tile.z);
+                state.tileGroup.add(mesh);
+
+                let label = String(tile.number);
+                if (tile.number === 1) label = 'Départ';
+                if (tile.number === boardSize) label = 'Arrivée';
+                const sprite = makeTextSprite(label, { fontSize: (tile.number === 1 || tile.number === boardSize) ? 32 : 48 });
+                sprite.position.set(tile.x, 0.22, tile.z);
+                state.tileGroup.add(sprite);
+            });
+
+            const box = new THREE.Box3().setFromObject(state.tileGroup);
+            const center = box.getCenter(new THREE.Vector3());
+            const size = box.getSize(new THREE.Vector3());
+            const maxDim = Math.max(size.x, size.z, 1);
+            state.camera.position.set(center.x, maxDim * 0.85, center.z + maxDim * 0.85);
+            state.controls.target.copy(center);
+            state.controls.update();
+        };
+
+        const updatePawns = (teams, positions, showNames) => {
+            const state = threeState;
+            const byTile = new Map();
+            teams.forEach((team) => {
+                const num = Math.min(Math.max(team.position, 1), positions.length);
+                if (!byTile.has(num)) byTile.set(num, []);
+                byTile.get(num).push(team);
+            });
+
+            const seenIds = new Set();
+            teams.forEach((team, index) => {
+                seenIds.add(team.id);
+                const num = Math.min(Math.max(team.position, 1), positions.length);
+                const tile = positions[num - 1];
+                const siblings = byTile.get(num);
+                const siblingIndex = siblings.indexOf(team);
+                const offsetRadius = siblings.length > 1 ? 0.28 : 0;
+                const angle = (siblingIndex / siblings.length) * Math.PI * 2;
+                const targetX = tile.x + Math.cos(angle) * offsetRadius;
+                const targetZ = tile.z + Math.sin(angle) * offsetRadius;
+                const color = teamColors[index % teamColors.length];
+
+                let pawnState = state.pawnStates.get(team.id);
+                if (!pawnState) {
+                    const geometry = new THREE.ConeGeometry(0.18, 0.42, 16);
+                    const material = new THREE.MeshStandardMaterial({ color });
+                    const mesh = new THREE.Mesh(geometry, material);
+                    mesh.position.set(targetX, 0.32, targetZ);
+                    state.pawnGroup.add(mesh);
+                    pawnState = { mesh, current: { x: targetX, z: targetZ }, target: { x: targetX, z: targetZ }, label: null, isMine: false };
+                    state.pawnStates.set(team.id, pawnState);
+                }
+                pawnState.target.x = targetX;
+                pawnState.target.z = targetZ;
+                pawnState.mesh.material.color.set(color);
+
+                const isMine = team.id === userId;
+                if (isMine !== pawnState.isMine) {
+                    pawnState.mesh.scale.setScalar(isMine ? 1.4 : 1);
+                    pawnState.mesh.material.emissive = new THREE.Color(isMine ? 0x554400 : 0x000000);
+                    pawnState.isMine = isMine;
+                }
+
+                if (showNames) {
+                    if (!pawnState.label) {
+                        const sprite = makeTextSprite(team.name, { fontSize: 34, background: 'rgba(0,0,0,0.75)', color: '#ffffff', scale: 0.85 });
+                        sprite.position.set(0, 0.5, 0);
+                        pawnState.mesh.add(sprite);
+                        pawnState.label = sprite;
+                    }
+                } else if (pawnState.label) {
+                    pawnState.mesh.remove(pawnState.label);
+                    pawnState.label = null;
+                }
+            });
+
+            Array.from(state.pawnStates.keys()).forEach((id) => {
+                if (!seenIds.has(id)) {
+                    const pawnState = state.pawnStates.get(id);
+                    state.pawnGroup.remove(pawnState.mesh);
+                    state.pawnStates.delete(id);
+                }
+            });
+        };
+
+        const renderGameBoard = (board, teams) => {
+            const container = document.getElementById('game-board');
+            if (!container) return;
+
+            const showNamesCheckbox = document.getElementById('show-names-checkbox');
+            const showNames = showNamesCheckbox ? showNamesCheckbox.checked : false;
+            const boardSize = gameData?.boardSize || 64;
+
+            const state = ensureThreeScene(container);
+            const positions = layoutBoardTiles(board, boardSize);
+
+            if (state.boardSize !== boardSize) {
+                buildBoardTiles(positions, boardSize);
+                state.boardSize = boardSize;
+            }
+
+            updatePawns(teams, positions, showNames);
         };
 
         const generateQRCode = (gameUrl) => {
